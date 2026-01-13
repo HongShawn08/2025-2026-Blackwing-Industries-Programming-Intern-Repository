@@ -3,31 +3,31 @@
 This repository contains the software for a Raspberry Pi–based Unmanned Ground Vehicle (UGV) and a digital weighing scale developed for the Blackwing Industries Engineering Design & Development Company. All EDD Prog intern responsibilities reside here.
 
 ## Repository Structure
-UGV/        # UGV control software
-Nest/      # Weighing scale software
-Shared/     # Shared utilities and helpers
+  - UGV/        # UGV control software
+  - Nest/      # Weighing scale software
+  - Shared/     # Shared utilities and helpers
 
 
 (files to be implemented)
 
 UGV/
 src/
-main.cpp # UGV entry point
-motors/ # Motor control implementations
-sensors/ # UGV sensors (IMU, ultrasonic, etc.)
-control/ # Navigation and control logic
-include/ # UGV header files
+  - main.cpp # UGV entry point
+  - motors/ # Motor control implementations
+  - sensors/ # UGV sensors (IMU, ultrasonic, etc.)
+  - control/ # Navigation and control logic
+  - include/ # UGV header files
 
 Nest/
 src/
-main.cpp # Scale entry point
-sensors/ # Load cell / HX711 interface
-calibration/ # Calibration routines
-include/ # Scale header files
+  - main.cpp # Scale entry point
+  - sensors/ # Load cell / HX711 interface
+  - calibration/ # Calibration routines
+  - include/ # Scale header files
 
 Shared/
-src/ # Shared implementations
-include/ # Shared headers and utilities
+src/
+  - include/ # Shared headers and utilities
 
 ---
 
@@ -44,6 +44,9 @@ include/ # Shared headers and utilities
 
 ## UGV
 From the repository root:
+
+
+
 ```bash
 g++ ugv/src/main.cpp -o ugv_main
 ./ugv_main
@@ -54,6 +57,8 @@ From the repository root:
 
 g++ scale/src/main.cpp -o scale_main
 ./scale_main
+
+```
 
 On the Raspberry Pi, the same commands are used after cloning the repository.
 
@@ -109,6 +114,6 @@ On the Raspberry Pi, the same commands are used after cloning the repository.
 
 ##Contributors
 
-Shawn Hong
-Rokus Kam
-Blackwing Industries Programming Dept.
+  Shawn Hong
+  Rokus Kam
+  Blackwing Industries Programming Dept.
