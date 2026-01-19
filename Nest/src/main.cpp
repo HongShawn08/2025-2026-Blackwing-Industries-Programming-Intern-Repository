@@ -1,15 +1,15 @@
-
-<span style="font-size: 14pt; font-family: 'times new roman', times, serif;">#include "HX711.h"
+#include "HX711.h"
 #include "soc/rtc.h"
 #include <stdlib.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <SimpleTimer.h>
+#include <Ticker.h>
+Ticker timer;
  
 #define DOUT  23
 #define CLK  19
-HX711 scale(DOUT, CLK);
+HX711 scale;
  
 int rbutton = 18; // this button will be used to reset the scale to 0. 
 String myString; 
@@ -18,7 +18,6 @@ char buff[10];
 float weight; 
 float calibration_factor = 206140; // for me this vlaue works just perfect 206140  
  
-SimpleTimer timer;
  
 // for the OLED display
  
@@ -29,11 +28,13 @@ SimpleTimer timer;
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
  
- 
+void getSendData();
+
 void setup() {
   
+  scale.begin(DOUT, CLK);
   Serial.begin(9600);
-  rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
+  //rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
   pinMode(rbutton, INPUT_PULLUP); 
   scale.set_scale();
   scale.tare(); //Reset the scale to 0
@@ -41,14 +42,15 @@ void setup() {
  
  
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  timer.setInterval(1000L, getSendData);
+  timer.attach_ms(1000, getSendData);
   display.clearDisplay();
   display.setTextColor(WHITE);
+  
  
 }
 void loop() {
   
-timer.run(); // Initiates SimpleTimer
+//timer.run(); Deprecated
  
  
 scale.set_scale(calibration_factor); //Adjust to this calibration factor
