@@ -1,5 +1,4 @@
 #include "HX711.h"
-#include "soc/rtc.h"
 #include <stdlib.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
