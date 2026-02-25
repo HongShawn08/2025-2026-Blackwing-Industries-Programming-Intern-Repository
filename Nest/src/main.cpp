@@ -5,8 +5,11 @@
 #include <Adafruit_SSD1306.h>
 #include <Ticker.h>
 #include <Arduino.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
 Ticker timer;
  
+
 #define DOUT  23
 #define CLK  19
 HX711 scale;
@@ -17,8 +20,12 @@ String cmessage; // complete message
 char buff[10];
 float weight; 
 float calibration_factor = 206140; // for me this vlaue works just perfect 206140  
- 
- 
+
+//Wifi data
+const char* ssid = "Jerald";
+const char* password = "gehjkwqn";
+const char* serverName = "https://script.google.com/macros/s/AKfycbxKe8RibJaiie_4nkjhCXyuEtf36cuxcMbGaRow03R2j3k_B1gzM3FlAt1bEJDG-7sM/exec";
+
 // for the OLED display
  
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
