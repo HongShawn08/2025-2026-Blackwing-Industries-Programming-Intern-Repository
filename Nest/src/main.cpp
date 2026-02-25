@@ -1,4 +1,3 @@
-volatile bool sendFlag = false;
 
 #include "HX711.h"
 #include <stdlib.h>
@@ -9,10 +8,9 @@ volatile bool sendFlag = false;
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-Ticker timer;
-
 void updateDisplay();
- 
+float calibration_factor = 206140;
+bool objectOnScale = false;
 
 #define DOUT  23
 #define CLK  19
@@ -22,8 +20,7 @@ int rbutton = 18; // this button will be used to reset the scale to 0.
 String myString; 
 String cmessage; // complete message
 char buff[10];
-float weight; 
-float calibration_factor = 206140; // for me this vlaue works just perfect 206140  
+float weight;
 
 //Wifi data
 const char* ssid = "Jerald";
@@ -53,10 +50,6 @@ void sendWeightToSheet(float weightValue) {
 
     http.end();
   }
-}
- 
-void getSendData() {
-  sendFlag = true;
 }
 
 void setup() {
@@ -93,7 +86,6 @@ void setup() {
   display.print(WiFi.localIP());
   display.display();
   delay(3000);
-  timer.attach(10, getSendData);
   display.clearDisplay();
   
  
@@ -104,13 +96,24 @@ void loop() {
   weight = scale.get_units(5); //5
   myString = dtostrf(weight, 3, 3, buff);
 
+  // Noise filter
+  if (abs(weight) < 0.5) {
+    weight = 0;
+  }
+
+  // Detect object placement
+  if (weight > 5 && !objectOnScale) {
+    sendWeightToSheet(weight);
+    objectOnScale = true;
+  }
+
+  // Detect removal
+  if (weight == 0 && objectOnScale) {
+    objectOnScale = false;
+  }
+
   //update display
   updateDisplay();
-  
-  if (sendFlag) {
-    sendWeightToSheet(weight);
-    sendFlag = false;
-  }
 
   cmessage = cmessage + "Weight" + ":" + myString + "Kg"+","; 
   Serial.println(cmessage); 
