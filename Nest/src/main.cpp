@@ -11,6 +11,7 @@
 void updateDisplay();
 float calibration_factor = 206140;
 bool objectOnScale = false;
+unsigned long stableStartTime = 0;
 
 #define DOUT  23
 #define CLK  19
@@ -21,6 +22,7 @@ String myString;
 String cmessage; // complete message
 char buff[10];
 float weight;
+float lastWeight = 0;
 
 //Wifi data
 const char* ssid = "Jerald";
@@ -96,36 +98,49 @@ void loop() {
   weight = scale.get_units(5); //5
   myString = dtostrf(weight, 3, 3, buff);
 
+  Serial.print("Weight: ");
+  Serial.println(weight);
+
   // Noise filter
-  if (abs(weight) < 0.5) {
+  if (abs(weight) < 0.01) {
     weight = 0;
   }
 
-  // Detect object placement
-  if (weight > 5 && !objectOnScale) {
-    sendWeightToSheet(weight);
-    objectOnScale = true;
+  // Detect object on scale
+  if (weight > 0.01) {
+
+      // If first time detecting weight
+      if (!objectOnScale) {
+          objectOnScale = true;
+          stableStartTime = millis();   // start stability timer
+      }
+
+      // If weight has been stable for 1 second, send it
+      if (millis() - stableStartTime > 1000) {
+          Serial.println("Stable weight detected. Sending...");
+          sendWeightToSheet(weight);
+          stableStartTime = millis() + 100000;  // prevent repeated sending
+      }
+
+  } else {
+      // Reset when object removed
+      objectOnScale = false;
   }
 
-  // Detect removal
-  if (weight == 0 && objectOnScale) {
-    objectOnScale = false;
-  }
+    //update display
+    updateDisplay();
 
-  //update display
-  updateDisplay();
-
-  cmessage = cmessage + "Weight" + ":" + myString + "Kg"+","; 
-  Serial.println(cmessage); 
-  cmessage = "";
- 
-  Serial.println();
- 
-  if ( digitalRead(rbutton) == LOW)
-  {
-     scale.set_scale();
-  scale.tare(); //Reset the scale to 0
-  }
+    cmessage = cmessage + "Weight" + ":" + myString + "Kg"+","; 
+    Serial.println(cmessage); 
+    cmessage = "";
+  
+    Serial.println();
+  
+    if ( digitalRead(rbutton) == LOW)
+    {
+      scale.set_scale();
+    scale.tare(); //Reset the scale to 0
+    }
  
   
 }
