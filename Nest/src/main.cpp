@@ -1,3 +1,5 @@
+volatile bool sendFlag = false;
+
 #include "HX711.h"
 #include <stdlib.h>
 #include <Wire.h>
@@ -8,6 +10,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 Ticker timer;
+
+void updateDisplay();
  
 
 #define DOUT  23
@@ -34,8 +38,26 @@ const char* serverName = "https://script.google.com/macros/s/AKfycbxKe8RibJaiie_
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+void sendWeightToSheet(float weightValue) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(serverName);
+    http.addHeader("Content-Type", "application/json");
+
+    String json = "{\"weight\":" + String(weightValue, 2) + "}";
+
+    int httpResponseCode = http.POST(json);
+    Serial.print("HTTP Response: ");
+    Serial.println(httpResponseCode);
+
+    http.end();
+  }
+}
  
-void getSendData();
+void getSendData() {
+  sendFlag = true;
+}
 
 void setup() {
   
@@ -46,6 +68,18 @@ void setup() {
   scale.set_scale();
   scale.tare(); //Reset the scale to 0
   long zero_factor = scale.read_average(); //Get a baseline reading
+
+  //wifi
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi connected!");
+  Serial.println(WiFi.localIP());
  
  
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
@@ -56,17 +90,21 @@ void setup() {
  
 }
 void loop() {
+
+  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+  weight = scale.get_units(5); //5
+  myString = dtostrf(weight, 3, 3, buff);
   
-//timer.run(); Deprecated
- 
- 
-scale.set_scale(calibration_factor); //Adjust to this calibration factor
- 
-weight = scale.get_units(5); //5
-myString = dtostrf(weight, 3, 3, buff);
-cmessage = cmessage + "Weight" + ":" + myString + "Kg"+","; 
-Serial.println(cmessage); 
-cmessage = "";
+  if (sendFlag) {
+    sendWeightToSheet(weight);
+    sendFlag = false;
+  }
+
+  updateDisplay();
+
+  cmessage = cmessage + "Weight" + ":" + myString + "Kg"+","; 
+  Serial.println(cmessage); 
+  cmessage = "";
  
   Serial.println();
  
@@ -80,7 +118,7 @@ cmessage = "";
 }
  
  
-void getSendData()
+void updateDisplay()
 {
   
         
