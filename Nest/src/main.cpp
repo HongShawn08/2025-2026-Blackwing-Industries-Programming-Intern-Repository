@@ -45,7 +45,7 @@ void sendWeightToSheet(float weightValue) {
     http.begin(serverName);
     http.addHeader("Content-Type", "application/json");
 
-    String json = "{\"weight\":" + String(weightValue, 2) + "}";
+    String json = "{\"weight\":" + String(weightValue, 3) + "}";
 
     int httpResponseCode = http.POST(json);
     Serial.print("HTTP Response: ");
@@ -83,9 +83,18 @@ void setup() {
  
  
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  timer.attach_ms(1000, getSendData);
   display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(0, 0);
   display.setTextColor(WHITE);
+  display.print("Connected!");
+  display.setTextSize(1);
+  display.setCursor(0, 25);
+  display.print(WiFi.localIP());
+  display.display();
+  delay(3000);
+  timer.attach(10, getSendData);
+  display.clearDisplay();
   
  
 }
@@ -94,13 +103,14 @@ void loop() {
   scale.set_scale(calibration_factor); //Adjust to this calibration factor
   weight = scale.get_units(5); //5
   myString = dtostrf(weight, 3, 3, buff);
+
+  //update display
+  updateDisplay();
   
   if (sendFlag) {
     sendWeightToSheet(weight);
     sendFlag = false;
   }
-
-  updateDisplay();
 
   cmessage = cmessage + "Weight" + ":" + myString + "Kg"+","; 
   Serial.println(cmessage); 
