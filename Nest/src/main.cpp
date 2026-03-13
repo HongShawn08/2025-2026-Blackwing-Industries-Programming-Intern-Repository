@@ -6,7 +6,7 @@
 #include <Ticker.h>
 #include <Arduino.h>
 Ticker timer;
-
+ 
 #define DOUT  23
 #define CLK  19
 HX711 scale;
