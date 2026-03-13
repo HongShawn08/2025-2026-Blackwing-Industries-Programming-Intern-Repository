@@ -1,3 +1,4 @@
+
 #include "HX711.h"
 #include <stdlib.h>
 #include <Wire.h>
@@ -5,8 +6,13 @@
 #include <Adafruit_SSD1306.h>
 #include <Ticker.h>
 #include <Arduino.h>
-Ticker timer;
- 
+#include <WiFi.h>
+#include <HTTPClient.h>
+void updateDisplay();
+float calibration_factor = 206140;
+bool objectOnScale = false;
+unsigned long stableStartTime = 0;
+
 #define DOUT  23
 #define CLK  19
 HX711 scale;
@@ -15,10 +21,14 @@ int rbutton = 18; // this button will be used to reset the scale to 0.
 String myString; 
 String cmessage; // complete message
 char buff[10];
-float weight; 
-float calibration_factor = 206140; // for me this vlaue works just perfect 206140  
- 
- 
+float weight;
+float lastWeight = 0;
+
+//Wifi data
+const char* ssid = "Jerald";
+const char* password = "gehjkwqn";
+const char* serverName = "https://script.google.com/macros/s/AKfycbxKe8RibJaiie_4nkjhCXyuEtf36cuxcMbGaRow03R2j3k_B1gzM3FlAt1bEJDG-7sM/exec";
+
 // for the OLED display
  
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -27,8 +37,22 @@ float calibration_factor = 206140; // for me this vlaue works just perfect 20614
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
- 
-void getSendData();
+
+void sendWeightToSheet(float weightValue) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(serverName);
+    http.addHeader("Content-Type", "application/json");
+
+    String json = "{\"weight\":" + String(weightValue, 3) + "}";
+
+    int httpResponseCode = http.POST(json);
+    Serial.print("HTTP Response: ");
+    Serial.println(httpResponseCode);
+
+    http.end();
+  }
+}
 
 void setup() {
   
@@ -39,41 +63,90 @@ void setup() {
   scale.set_scale();
   scale.tare(); //Reset the scale to 0
   long zero_factor = scale.read_average(); //Get a baseline reading
+
+  //wifi
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi connected!");
+  Serial.println(WiFi.localIP());
  
  
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  timer.attach_ms(1000, getSendData);
   display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(0, 0);
   display.setTextColor(WHITE);
+  display.print("Connected!");
+  display.setTextSize(1);
+  display.setCursor(0, 25);
+  display.print(WiFi.localIP());
+  display.display();
+  delay(3000);
+  display.clearDisplay();
   
  
 }
 void loop() {
-  
-//timer.run(); Deprecated
- 
- 
-scale.set_scale(calibration_factor); //Adjust to this calibration factor
- 
-weight = scale.get_units(5); //5
-myString = dtostrf(weight, 3, 3, buff);
-cmessage = cmessage + "Weight" + ":" + myString + "Kg"+","; 
-Serial.println(cmessage); 
-cmessage = "";
- 
-  Serial.println();
- 
-  if ( digitalRead(rbutton) == LOW)
-  {
-     scale.set_scale();
-  scale.tare(); //Reset the scale to 0
+
+  scale.set_scale(calibration_factor); //Adjust to this calibration factor
+  weight = scale.get_units(5); //5
+  myString = dtostrf(weight, 3, 3, buff);
+
+  Serial.print("Weight: ");
+  Serial.println(weight);
+
+  // Noise filter
+  if (abs(weight) < 0.01) {
+    weight = 0;
   }
+
+  // Detect object on scale
+  if (weight > 0.01) {
+
+      // If first time detecting weight
+      if (!objectOnScale) {
+          objectOnScale = true;
+          stableStartTime = millis();   // start stability timer
+      }
+
+      // If weight has been stable for 1 second, send it
+      if (millis() - stableStartTime > 1000) {
+          Serial.println("Stable weight detected. Sending...");
+          sendWeightToSheet(weight);
+          stableStartTime = millis() + 100000;  // prevent repeated sending
+      }
+
+  } else {
+      // Reset when object removed
+      objectOnScale = false;
+  }
+
+    //update display
+    updateDisplay();
+
+    cmessage = cmessage + "Weight" + ":" + myString + "Kg"+","; 
+    Serial.println(cmessage); 
+    cmessage = "";
+  
+    Serial.println();
+  
+    if ( digitalRead(rbutton) == LOW)
+    {
+      scale.set_scale();
+    scale.tare(); //Reset the scale to 0
+    }
  
   
 }
  
  
-void getSendData()
+void updateDisplay()
 {
   
         
