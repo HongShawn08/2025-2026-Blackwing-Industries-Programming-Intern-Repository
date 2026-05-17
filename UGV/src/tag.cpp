@@ -160,6 +160,9 @@ void Tag::localize() {
         double x = (pow(r0, 2) - pow(r1, 2) + pow(this->anchor1_x, 2)) / (2 * this->anchor1_x);
         double y = (pow(r0, 2) - pow(r2, 2) + pow(this->anchor2_x, 2) + pow(this->anchor2_y, 2) - 2 * this->anchor2_x * x) / (2 * this->anchor2_y);
 
+        this->current_x = x;
+        this->current_y = y;
+
         Serial.print("POS: ");
         Serial.print(x);
         Serial.print(", ");

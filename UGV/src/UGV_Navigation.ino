@@ -123,35 +123,37 @@ void setup() {
 // MAIN LOOP
 // ============================================
 void loop() {
-    // Update UWB positioning system
-    // This runs the state machine: AWAITING_READY → STARTING_ROUND → LOCALIZING
     uwb_tag.update();
     
-    // TODO: Add navigation logic here once you have position data
-    // The uwb_tag.update() will print "POS: x, y" to Serial when localizing
-    
-    // Example navigation skeleton (to be completed):
-    /*
-    if (uwb_tag is in LOCALIZING state) {
-        double current_x = uwb_tag.get_x();  // You'll need to add this getter
-        double current_y = uwb_tag.get_y();  // You'll need to add this getter
+    if (uwb_tag.is_localizing() && !mission_complete) {
+        double x = uwb_tag.get_x();
+        double y = uwb_tag.get_y();
         
         // Calculate distance to target
-        double dx = TARGET_X - current_x;
-        double dy = TARGET_Y - current_y;
+        double dx = TARGET_X - x;
+        double dy = TARGET_Y - y;
         double distance = sqrt(dx*dx + dy*dy);
         
         if (distance < ARRIVAL_TOLERANCE) {
-            // ARRIVED!
             stop_motors();
             mission_complete = true;
+            Serial.println("TARGET REACHED!");
         } else {
-            // Calculate heading and drive
-            double heading_to_target = atan2(dy, dx);
-            drive_toward_target(heading_to_target);
+            // Calculate heading
+            double heading = atan2(dy, dx);
+            
+            // Add curve (optional)
+            double t = millis() / 1000.0;
+            double curve_offset = 0.3 * sin(0.5 * t);
+            heading += curve_offset;
+            
+            // Drive (implement based on your motor driver)
+            drive_toward_heading(heading);
+            
+            Serial.print("Distance: ");
+            Serial.println(distance);
         }
     }
-    */
 }
 
 // ============================================

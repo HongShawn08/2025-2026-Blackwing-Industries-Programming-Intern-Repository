@@ -5,6 +5,9 @@
 
 class Tag {
 private:
+    double current_x = 0.0;
+    double current_y = 0.0;
+private:
     UWBNode node;
     State state;
     uint8_t num_broadcasts{0};
@@ -28,6 +31,11 @@ private:
     void await_ready();
     void next_round();
     void localize();
+public:
+//method calls
+    double get_x() { return current_x; }
+    double get_y() { return current_y; }
+    bool is_localizing() { return state == LOCALIZING; }
 public:
     Tag(uint8_t id);
     void reset();
