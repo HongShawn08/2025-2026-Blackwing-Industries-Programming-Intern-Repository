@@ -59,13 +59,6 @@ void setup() {
   Serial.println(F("UGV Navigation System Starting..."));
   Serial.println(F("========================================"));
   
-  // Motor pins setup
-  pinMode(MOTOR_LEFT_FWD, OUTPUT);
-  pinMode(MOTOR_LEFT_REV, OUTPUT);
-  pinMode(MOTOR_RIGHT_FWD, OUTPUT);
-  pinMode(MOTOR_RIGHT_REV, OUTPUT);
-  
-  
 
   // ============================================
   // UWB INITIALIZATION
