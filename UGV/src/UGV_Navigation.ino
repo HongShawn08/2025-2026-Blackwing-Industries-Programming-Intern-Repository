@@ -8,21 +8,20 @@
 
 #include "tag.h"
 
+#include <ESP32Servo.h>
+
+const uint8_t ESC_LEFT = 25;
+const uint8_t ESC_RIGHT = 26;
+
+Servo escLeft;
+Servo escRight;
+
 // ============================================
 // UWB MODULE PINS (ESP32)
 // ============================================
 const uint8_t PIN_RST = 27;  // reset pin
 const uint8_t PIN_IRQ = 34;  // irq pin
 const uint8_t PIN_SS = 4;    // spi select pin
-
-// ============================================
-// MOTOR CONTROL PINS (ESP32)
-// TODO: Update these based on your motor driver wiring
-// ============================================
-const uint8_t MOTOR_LEFT_FWD = 25;
-const uint8_t MOTOR_LEFT_REV = 26;
-const uint8_t MOTOR_RIGHT_FWD = 32;
-const uint8_t MOTOR_RIGHT_REV = 33;
 
 // ============================================
 // UWB CONFIGURATION
@@ -66,13 +65,7 @@ void setup() {
   pinMode(MOTOR_RIGHT_FWD, OUTPUT);
   pinMode(MOTOR_RIGHT_REV, OUTPUT);
   
-  // Initialize motors to stopped
-  digitalWrite(MOTOR_LEFT_FWD, LOW);
-  digitalWrite(MOTOR_LEFT_REV, LOW);
-  digitalWrite(MOTOR_RIGHT_FWD, LOW);
-  digitalWrite(MOTOR_RIGHT_REV, LOW);
-
-  Serial.println(F("Motor pins initialized"));
+  
 
   // ============================================
   // UWB INITIALIZATION
@@ -117,6 +110,17 @@ void setup() {
   Serial.print(TARGET_Y);
   Serial.println(F(")"));
   Serial.println(F("========================================"));
+
+  // ============================================
+  //ESC setup
+  // ============================================
+  escLeft.attach(ESC_LEFT, 1000, 2000);
+  escRight.attach(ESC_RIGHT, 1000, 2000);
+
+  // Arm ESCs
+  escLeft.writeMicroseconds(1500);
+  escRight.writeMicroseconds(1500);
+  delay(2000);
 }
 
 // ============================================
@@ -162,26 +166,25 @@ void loop() {
 // ============================================
 
 void stop_motors() {
-    digitalWrite(MOTOR_LEFT_FWD, LOW);
-    digitalWrite(MOTOR_LEFT_REV, LOW);
-    digitalWrite(MOTOR_RIGHT_FWD, LOW);
-    digitalWrite(MOTOR_RIGHT_REV, LOW);
+    escLeft.writeMicroseconds(1500);
+    escRight.writeMicroseconds(1500);
 }
 
-void drive_forward(int speed) {
-    // speed: 0-255 (PWM)
-    analogWrite(MOTOR_LEFT_FWD, speed);
-    analogWrite(MOTOR_RIGHT_FWD, speed);
-}
-
-void turn_left(int speed) {
-    analogWrite(MOTOR_LEFT_REV, speed);
-    analogWrite(MOTOR_RIGHT_FWD, speed);
-}
-
-void turn_right(int speed) {
-    analogWrite(MOTOR_LEFT_FWD, speed);
-    analogWrite(MOTOR_RIGHT_REV, speed);
+void drive_toward_heading(double heading) {
+    double current_heading = 0;  // TODO: Get from IMU
+    double heading_error = heading - current_heading;
+    
+    double turn_factor = constrain(heading_error * 2.0, -1.0, 1.0);
+    
+    int base_speed = 1700;
+    int left_speed = base_speed + (turn_factor * 200);
+    int right_speed = base_speed - (turn_factor * 200);
+    
+    left_speed = constrain(left_speed, 1000, 2000);
+    right_speed = constrain(right_speed, 1000, 2000);
+    
+    escLeft.writeMicroseconds(left_speed);
+    escRight.writeMicroseconds(right_speed);
 }
 
 // TODO: Add tank drive control based on heading error
