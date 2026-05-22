@@ -1,4 +1,4 @@
-#include "../anchor.h"
+#include "anchor.h"
 
 // connection pins (ESP32)
 static const uint8_t PIN_RST = 27;  // reset pin

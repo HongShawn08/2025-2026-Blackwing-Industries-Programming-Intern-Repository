@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"name": "straight",
+			"path": "../../../PlatformIO/Projects/straight"
+		},
+		{
+			"name": "curved",
+			"path": "../../../PlatformIO/Projects/curved"
+		}
+	],
+	"settings": {}
+}
