@@ -19,6 +19,9 @@ private:
     double anchor2_x = 0.0;
     double anchor2_y = 0.0;
 
+    double pos_x{0};
+    double pos_y{0};
+
     uint32_t next_print_time;
 
     void matrix_set(int r, int c, double dist);
@@ -36,4 +39,7 @@ public:
     void print_distances();
     void free_matrix();
     void free_distances();
+    inline double get_x() const { return pos_x; }
+    inline double get_y() const { return pos_y; }
+    inline bool is_localizing() const { return state == LOCALIZING; }
 };

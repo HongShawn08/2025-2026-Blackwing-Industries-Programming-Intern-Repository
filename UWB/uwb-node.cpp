@@ -2,7 +2,7 @@
 #include <cstring>
 #include "uwb-node.h"
 
-UWBNode::UWBNode(NodeType type, uint8_t id): UWBNode({.type=type, .id=id}) {}
+UWBNode::UWBNode(NodeType type, uint8_t id): UWBNode(NodeID{type, id}) {}
 
 UWBNode::UWBNode(NodeID id): id(id) {
     this->tx_msg[0] = BB0;

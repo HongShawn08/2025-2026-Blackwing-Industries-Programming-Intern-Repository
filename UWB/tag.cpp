@@ -157,13 +157,13 @@ void Tag::localize() {
     double r2 = distances[2];
 
     if (this->anchor1_x > 0 && r0 > 0 && r1 > 0 && r2 > 0) {
-        double x = (pow(r0, 2) - pow(r1, 2) + pow(this->anchor1_x, 2)) / (2 * this->anchor1_x);
-        double y = (pow(r0, 2) - pow(r2, 2) + pow(this->anchor2_x, 2) + pow(this->anchor2_y, 2) - 2 * this->anchor2_x * x) / (2 * this->anchor2_y);
+        this->pos_x = (pow(r0, 2) - pow(r1, 2) + pow(this->anchor1_x, 2)) / (2 * this->anchor1_x);
+        this->pos_y = (pow(r0, 2) - pow(r2, 2) + pow(this->anchor2_x, 2) + pow(this->anchor2_y, 2) - 2 * this->anchor2_x * this->pos_x) / (2 * this->anchor2_y);
 
         Serial.print("POS: ");
-        Serial.print(x);
+        Serial.print(this->pos_x);
         Serial.print(", ");
-        Serial.println(y);
+        Serial.println(this->pos_y);
 
         mavlink_message_t msg;
         uint8_t buf[MAVLINK_MAX_PACKET_LEN];
@@ -180,8 +180,8 @@ void Tag::localize() {
         mavlink_msg_vision_position_estimate_pack(
             1, 158, &msg,         // 158 is the official MAVLink ID for a Companion Computer
             usec_time,            // Timestamp
-            x,                    // X position in meters (North)
-            y,                    // Y position in meters (East)
+            this->pos_x,          // X position in meters (North)
+            this->pos_y,          // Y position in meters (East)
             0.0,                  // Z position 
             0.0, 0.0, 0.0,        // Roll, Pitch, Yaw 
             covariance,           // <-- Pass the empty array instead of NULL
