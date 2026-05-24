@@ -4,9 +4,9 @@
 #define RNG_DELAY_MS 3     // Delay between ranging polls
 #define PAIR_DELAY_MS 250  // Delay between pairing polls
 
-#define POLL_RX_TO_RESP_TX_DLY_UUS 580  // Delay from when the RX receives the poll to when it broadcasts a response
-#define POLL_TX_TO_RESP_RX_DLY_UUS 240  // Delay from when the TX transmits a poll to when it checks for responses
-#define RESP_RX_TIMEOUT_UUS 1750        // Duration for which the TX checks for responses before moving on
+#define POLL_RX_TO_RESP_TX_DLY_UUS 900  // Delay from when the RX receives the poll to when it broadcasts a response
+#define POLL_TX_TO_RESP_RX_DLY_UUS 300  // Delay from when the TX transmits a poll to when it checks for responses
+#define RESP_RX_TIMEOUT_UUS 2700        // Duration for which the TX checks for responses before moving on
 
 #define CHECK_TIMEOUT_MS 1000           // Duration for which we check for messages before timing out
 
