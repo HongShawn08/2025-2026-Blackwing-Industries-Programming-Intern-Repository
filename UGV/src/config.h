@@ -10,6 +10,14 @@
 
 #define CHECK_TIMEOUT_MS 1000           // Duration for which we check for messages before timing out
 
+// Set SKIP_CALIBRATION to 1 to skip inter-anchor ranging and use hardcoded positions.
+// Measure anchor positions with a tape measure and fill in the values below.
+// A0 is always at (0,0). A1 is placed along the X axis. A2 forms the triangle.
+#define SKIP_CALIBRATION 1
+#define ANCHOR1_X 2.0   // meters: distance from A0 to A1
+#define ANCHOR2_X 0.0   // meters: X coordinate of A2
+#define ANCHOR2_Y 2.0   // meters: Y coordinate of A2
+
 #define NUM_ANCHORS 3
 #define NUM_ROUNDS ((NUM_ANCHORS % 2 == 0) ? (NUM_ANCHORS - 1) : NUM_ANCHORS)
 #define NUM_SAMPLES 20

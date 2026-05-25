@@ -9,6 +9,9 @@ Anchor::Anchor(uint8_t id): node(ANCHOR, id), state(AWAITING_START) {
     if (id < 20) this->sync_delay = delays[id] * 2;
     else this->sync_delay = id * 12;  // Fallback for IDs > 20
     this->node.set_target(TAG, 0);
+#if SKIP_CALIBRATION
+    this->state = CALIBRATED;
+#endif
 }
 
 void Anchor::await_start() {

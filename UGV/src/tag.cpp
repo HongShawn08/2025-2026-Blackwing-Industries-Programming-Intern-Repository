@@ -207,6 +207,20 @@ void Tag::localize() {
 }
     
 void Tag::update() {
+#if SKIP_CALIBRATION
+    if (this->state == AWAITING_READY) {
+        this->anchor1_x = ANCHOR1_X;
+        this->anchor2_x = ANCHOR2_X;
+        this->anchor2_y = ANCHOR2_Y;
+        this->free_matrix();
+        this->distances = new double[NUM_ANCHORS]{0};
+        this->state = LOCALIZING;
+        Serial.println("Skipping calibration — using hardcoded anchor positions.");
+        Serial.print("A0: (0.00, 0.00)\n");
+        Serial.print("A1: ("); Serial.print(ANCHOR1_X); Serial.println(", 0.00)");
+        Serial.print("A2: ("); Serial.print(ANCHOR2_X); Serial.print(", "); Serial.print(ANCHOR2_Y); Serial.println(")");
+    }
+#endif
     switch (this->state) {
         case AWAITING_READY:
             await_ready(); break;
