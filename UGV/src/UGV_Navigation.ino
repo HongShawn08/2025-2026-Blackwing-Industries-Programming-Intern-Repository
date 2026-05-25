@@ -69,6 +69,7 @@ void drive(int left_us, int right_us) {
 // ============================================
 void setup() {
     Serial.begin(115200);
+    Serial2.begin(115200);
     delay(1000);
     Serial.println("UGV Navigation Starting...");
 

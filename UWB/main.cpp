@@ -10,7 +10,7 @@ static dwt_config_t config = {
 
 extern dwt_txconfig_t txconfig_options;
 
-static auto node = Anchor(2);
+static auto node = Anchor(0);
 
 void setup() {
   Serial.begin(115200);
