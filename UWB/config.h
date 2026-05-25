@@ -4,15 +4,15 @@
 #define RNG_DELAY_MS 3     // Delay between ranging polls
 #define PAIR_DELAY_MS 250  // Delay between pairing polls
 
-#define POLL_RX_TO_RESP_TX_DLY_UUS 900  // Delay from when the RX receives the poll to when it broadcasts a response
+#define POLL_RX_TO_RESP_TX_DLY_UUS 5000 // Delay from when the RX receives the poll to when it broadcasts a response
 #define POLL_TX_TO_RESP_RX_DLY_UUS 300  // Delay from when the TX transmits a poll to when it checks for responses
-#define RESP_RX_TIMEOUT_UUS 2700        // Duration for which the TX checks for responses before moving on
+#define RESP_RX_TIMEOUT_UUS 6000        // Duration for which the TX checks for responses before moving on
 
 #define CHECK_TIMEOUT_MS 1000           // Duration for which we check for messages before timing out
 
 #define NUM_ANCHORS 3
 #define NUM_ROUNDS ((NUM_ANCHORS % 2 == 0) ? (NUM_ANCHORS - 1) : NUM_ANCHORS)
-#define NUM_SAMPLES 1000
+#define NUM_SAMPLES 20
 
 #define PEER_NONE 255
 

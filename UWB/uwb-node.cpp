@@ -184,8 +184,7 @@ uint8_t UWBNode::resp_measurement() {
                 return RESPONSE_VALID;
             } else {
                 Serial.print("Failed to respond in time.");
-                // Abort any pending TX to prevent stale data from being sent
-                // dwt_forcetrxoff();
+                dwt_forcetrxoff();
             }
         } else {
             write_rx_header(BroadcastHeader::FINISH);

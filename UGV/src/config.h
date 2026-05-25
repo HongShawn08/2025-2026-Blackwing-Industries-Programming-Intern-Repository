@@ -12,7 +12,7 @@
 
 #define NUM_ANCHORS 3
 #define NUM_ROUNDS ((NUM_ANCHORS % 2 == 0) ? (NUM_ANCHORS - 1) : NUM_ANCHORS)
-#define NUM_SAMPLES 1000
+#define NUM_SAMPLES 20
 
 #define PEER_NONE 255
 
