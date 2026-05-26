@@ -15,6 +15,14 @@ const uint8_t ESC_RIGHT = 26;
 const uint8_t PIN_RST   = 27;
 const uint8_t PIN_IRQ   = 34;
 const uint8_t PIN_SS    = 4;
+const uint8_t CLAW_PIN  = 18;
+const uint8_t BUTTON_PIN = 0;   // BOOT/FLASH button
+
+// ============================================
+// CLAW PARAMETERS
+// ============================================
+const int CLAW_OPEN   = 1000;  // µs — adjust if needed
+const int CLAW_CLOSED = 2000;  // µs — adjust if needed
 
 // ============================================
 // UWB CONFIGURATION
@@ -34,8 +42,8 @@ const double TARGET_X          = 2.0;
 const double TARGET_Y          = 2.0;
 const double ARRIVAL_TOLERANCE = 0.2;   // 20 cm
 const int    BASE_SPEED        = 1700;  // µs (1500 = stopped, 2000 = full forward)
-const int    MAX_TURN          = 200;   // µs of differential per unit of heading error
 const double MIN_MOVE_M        = 0.15;  // min displacement (m) to update heading estimate
+const double HEADING_THRESHOLD = 0.2;   // radians (~11°) — pivot to correct if error exceeds this
 
 // ============================================
 // GLOBALS
@@ -44,7 +52,9 @@ static Tag uwb_tag(0);
 
 Servo escLeft;
 Servo escRight;
+Servo clawServo;
 
+bool   claw_closed       = false;
 bool   mission_complete  = false;
 double prev_x            = -999;
 double prev_y            = -999;
@@ -104,6 +114,11 @@ void setup() {
     stop_motors();
     delay(2000);  // ESC arming delay
 
+    clawServo.attach(CLAW_PIN, 1000, 2000);
+    clawServo.writeMicroseconds(CLAW_OPEN);
+
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+
     Serial.println("Ready — waiting for UWB anchor lock...");
 }
 
@@ -112,6 +127,12 @@ void setup() {
 // ============================================
 void loop() {
     uwb_tag.update();
+
+    if (!claw_closed && digitalRead(BUTTON_PIN) == LOW) {
+        clawServo.writeMicroseconds(CLAW_CLOSED);
+        claw_closed = true;
+        Serial.println("Claw closed.");
+    }
 
     if (!uwb_tag.is_localizing() || mission_complete) return;
 
@@ -159,10 +180,19 @@ void loop() {
     while (heading_error >  M_PI) heading_error -= 2.0 * M_PI;
     while (heading_error < -M_PI) heading_error += 2.0 * M_PI;
 
-    // Proportional steering: positive error = target is to the left = speed up left motor
-    double turn = constrain(heading_error * 1.5, -1.0, 1.0);
-    drive(BASE_SPEED + (int)(turn * MAX_TURN),
-          BASE_SPEED - (int)(turn * MAX_TURN));
+    if (abs(heading_error) <= HEADING_THRESHOLD) {
+        // Heading is good — drive straight
+        drive(BASE_SPEED, BASE_SPEED);
+    } else {
+        // Pivot in place to face target, then re-establish heading
+        if (heading_error > 0)
+            drive(1500, BASE_SPEED);   // stop left, run right → turn left
+        else
+            drive(BASE_SPEED, 1500);   // run left, stop right → turn right
+        heading_valid = false;
+        prev_x = x;
+        prev_y = y;
+    }
 
     Serial.print("POS: ("); Serial.print(x, 2); Serial.print(", "); Serial.print(y, 2);
     Serial.print(")  DIST: "); Serial.print(distance, 2);
