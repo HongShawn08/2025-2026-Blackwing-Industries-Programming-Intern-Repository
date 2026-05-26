@@ -2,6 +2,14 @@
 #include <math.h>
 #include <common/mavlink.h>
 
+// ============================================
+// ANCHOR POSITIONS — FILL IN DAY-OF
+// Get these from the main team after their calibration runs.
+// Index = anchor ID. Set all 7 even if you only expect some to respond.
+// ============================================
+static const double ANCHOR_X[NUM_ANCHORS] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+static const double ANCHOR_Y[NUM_ANCHORS] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
 Tag::Tag(uint8_t id): state(AWAITING_READY), node(TAG, id), ranging_round(255), matrix(new double[NUM_ANCHORS * (NUM_ANCHORS - 1) / 2]) {
     this->node.set_target(TAG, 0);
 }
@@ -89,34 +97,8 @@ void Tag::await_ready() {
                 Serial.println(int(this->ranging_round));
                 this->state = STARTING_ROUND;
             } else {
-                Serial.println("Calibration complete!");
-                
-                // --- GEOMETRY CALCULATION ---
-                double d01 = matrix_get(0, 1);
-                double d02 = matrix_get(0, 2);
-                double d12 = matrix_get(1, 2);
-
-                if (d01 > 0 && d02 > 0 && d12 > 0) {
-                    this->anchor1_x = d01;
-                    this->anchor2_x = (pow(d01, 2) + pow(d02, 2) - pow(d12, 2)) / (2 * d01);
-                    this->anchor2_y = sqrt(fabs(pow(d02, 2) - pow(this->anchor2_x, 2)));
-                    
-                    Serial.println("--- GEOMETRY CALCULATED ---");
-                    Serial.print("A0: (0.00, 0.00)\n");
-                    Serial.print("A1: ("); Serial.print(this->anchor1_x); Serial.println(", 0.00)");
-                    Serial.print("A2: ("); Serial.print(this->anchor2_x); Serial.print(", "); 
-                    Serial.print(this->anchor2_y); Serial.println(")");
-                } else {
-                    // Fallback to defaults
-                    this->anchor1_x = 2.0;
-                    this->anchor2_x = 1.0; 
-                    this->anchor2_y = 1.73; 
-                    Serial.println("WARN: Calibration missing data. Using defaults.");
-                }
-
+                Serial.println("Calibration complete — starting localization.");
                 this->distances = new double[NUM_ANCHORS]{0};
-                
-                // Broadcast to start localization mode
                 for (auto i = 0; i < 20; ++i) {
                     this->node.broadcast(++this->ranging_round, PAIR_DELAY_MS);
                 }
@@ -139,86 +121,87 @@ void Tag::next_round() {
 }
 
 void Tag::localize() {
-    // 1. Measure all anchors
+    // 1. Poll all anchors
     for (uint8_t i = 0; i < NUM_ANCHORS; ++i) {
         node.set_target(ANCHOR, i);
-        
-        // Timeout 10ms (matches your uwb-node.h signature)
-        double d = this->node.poll_measurement(10); 
-        
-        if(d > 0.0 && d < 100.0) { 
+        double d = this->node.poll_measurement(10);
+        if (d > 0.0 && d < 100.0) {
             distances[i] = d;
         }
     }
 
-    // 2. Trilateration
-    double r0 = distances[0];
-    double r1 = distances[1];
-    double r2 = distances[2];
-
-    if (this->anchor1_x > 0 && r0 > 0 && r1 > 0 && r2 > 0) {
-        double x = (pow(r0, 2) - pow(r1, 2) + pow(this->anchor1_x, 2)) / (2 * this->anchor1_x);
-        double y = (pow(r0, 2) - pow(r2, 2) + pow(this->anchor2_x, 2) + pow(this->anchor2_y, 2) - 2 * this->anchor2_x * x) / (2 * this->anchor2_y);
-
-        this->current_x = x;
-        this->current_y = y;
-
-        Serial.print("POS: ");
-        Serial.print(x);
-        Serial.print(", ");
-        Serial.println(y);
-
-        mavlink_message_t msg;
-        uint8_t buf[MAVLINK_MAX_PACKET_LEN];
-
-        // Get current time in microseconds (required by MAVLink)
-        uint64_t usec_time = micros();
-
-        // Pack the variables into the VISION_POSITION_ESTIMATE message
-        // System ID = 1, Component ID = 1 (Identifies the ESP32)
-        // 1. Create an empty array of 21 floats right above the MAVLink function
-        float covariance[21] = {0};
-        
-        // 2. Pass that array into the function, and change Component ID to 158
-        mavlink_msg_vision_position_estimate_pack(
-            1, 158, &msg,         // 158 is the official MAVLink ID for a Companion Computer
-            usec_time,            // Timestamp
-            x,                    // X position in meters (North)
-            y,                    // Y position in meters (East)
-            0.0,                  // Z position 
-            0.0, 0.0, 0.0,        // Roll, Pitch, Yaw 
-            covariance,           // <-- Pass the empty array instead of NULL
-            0                     // Reset counter
-        );
-
-        // Convert the message into a binary byte array
-        uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
-
-        // Send it to the Pixhawk! 
-        // (Assuming you initialized Serial2 in your main .ino setup to talk to the Pixhawk)
-        Serial2.write(buf, len);
+    // 2. Collect valid anchor readings
+    double vx[NUM_ANCHORS], vy[NUM_ANCHORS], vr[NUM_ANCHORS];
+    int n = 0;
+    for (uint8_t i = 0; i < NUM_ANCHORS; ++i) {
+        if (distances[i] > 0.0 && distances[i] < 100.0) {
+            vx[n] = ANCHOR_X[i];
+            vy[n] = ANCHOR_Y[i];
+            vr[n] = distances[i];
+            n++;
+        }
     }
-    
+    if (n < 3) return;
+
+    // 3. Linearized least squares using anchor 0 as reference
+    // Subtracting anchor 0's equation from each other gives a linear system A*[x,y]^T = b
+    double x0 = vx[0], y0 = vy[0], r0 = vr[0];
+    double ATA00 = 0, ATA01 = 0, ATA11 = 0;
+    double ATb0  = 0, ATb1  = 0;
+
+    for (int i = 1; i < n; ++i) {
+        double ai0 = 2.0 * (vx[i] - x0);
+        double ai1 = 2.0 * (vy[i] - y0);
+        double bi  = vx[i]*vx[i] - x0*x0 + vy[i]*vy[i] - y0*y0 - vr[i]*vr[i] + r0*r0;
+        ATA00 += ai0 * ai0;
+        ATA01 += ai0 * ai1;
+        ATA11 += ai1 * ai1;
+        ATb0  += ai0 * bi;
+        ATb1  += ai1 * bi;
+    }
+
+    double det = ATA00 * ATA11 - ATA01 * ATA01;
+    if (fabs(det) < 1e-10) return;
+
+    double x = (ATA11 * ATb0 - ATA01 * ATb1) / det;
+    double y = (ATA00 * ATb1 - ATA01 * ATb0) / det;
+
+    this->current_x = x;
+    this->current_y = y;
+
+    Serial.print("POS: ");
+    Serial.print(x);
+    Serial.print(", ");
+    Serial.println(y);
+
+    // Send position to Pixhawk via MAVLink
+    mavlink_message_t msg;
+    uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+    float covariance[21] = {0};
+    mavlink_msg_vision_position_estimate_pack(
+        1, 158, &msg,
+        micros(),
+        x, y, 0.0,
+        0.0, 0.0, 0.0,
+        covariance, 0
+    );
+    uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+    Serial2.write(buf, len);
+
     auto now = millis();
     if (now >= next_print_time) {
         next_print_time = now + 1000;
         print_distances();
     }
 }
-    
+
 void Tag::update() {
 #if SKIP_CALIBRATION
     if (this->state == AWAITING_READY) {
-        this->anchor1_x = ANCHOR1_X;
-        this->anchor2_x = ANCHOR2_X;
-        this->anchor2_y = ANCHOR2_Y;
         this->free_matrix();
         this->distances = new double[NUM_ANCHORS]{0};
         this->state = LOCALIZING;
-        Serial.println("Skipping calibration — using hardcoded anchor positions.");
-        Serial.print("A0: (0.00, 0.00)\n");
-        Serial.print("A1: ("); Serial.print(ANCHOR1_X); Serial.println(", 0.00)");
-        Serial.print("A2: ("); Serial.print(ANCHOR2_X); Serial.print(", "); Serial.print(ANCHOR2_Y); Serial.println(")");
+        Serial.println("Skipping calibration — starting localization.");
     }
 #endif
     switch (this->state) {
