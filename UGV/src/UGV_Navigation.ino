@@ -10,12 +10,12 @@
 // ============================================
 // PINS
 // ============================================
-const uint8_t ESC_LEFT  = 25;
-const uint8_t ESC_RIGHT = 26;
-const uint8_t PIN_RST   = 27;
-const uint8_t PIN_IRQ   = 34;
-const uint8_t PIN_SS    = 4;
-const uint8_t CLAW_PIN  = 18;
+const uint8_t ESC_LEFT   = 25;
+const uint8_t ESC_RIGHT  = 26;
+const uint8_t PIN_RST    = 27;
+const uint8_t PIN_IRQ    = 34;
+const uint8_t PIN_SS     = 4;
+const uint8_t CLAW_PIN   = 18;
 const uint8_t BUTTON_PIN = 0;   // BOOT/FLASH button
 
 // ============================================
@@ -35,31 +35,43 @@ static dwt_config_t config = {
 extern dwt_txconfig_t txconfig_options;
 
 // ============================================
-// NAVIGATION PARAMETERS
-// Set TARGET_X/Y to the nest's position in the anchor coordinate frame
+// MISSION PARAMETERS  — UPDATE DAY-OF
 // ============================================
-const double TARGET_X          = 2.0;
-const double TARGET_Y          = 2.0;
-const double ARRIVAL_TOLERANCE = 0.2;   // 20 cm
-const int    BASE_SPEED        = 1700;  // µs (1500 = stopped, 2000 = full forward)
-const double MIN_MOVE_M        = 0.15;  // min displacement (m) to update heading estimate
-const double HEADING_THRESHOLD = 0.2;   // radians (~11°) — pivot to correct if error exceeds this
+const double TARGET_X          = 2.0;    // opponent nest X (meters)
+const double TARGET_Y          = 2.0;    // opponent nest Y (meters)
+const double ARRIVAL_TOLERANCE = 0.2;    // 20 cm
+const int    BASE_SPEED        = 1700;   // µs forward
+const int    REVERSE_SPEED     = 1300;   // µs reverse
+const double MIN_MOVE_M        = 0.15;
+const double HEADING_THRESHOLD = 0.2;    // radians (~11°)
+
+// Tune these on the field before competition:
+//   STRAIGHT_DRIVE_TIME: run once, measure distance, scale as needed
+//   WAIT_TIME: how long you have to press the BOOT button
+//   BACKUP_TIME: how far to reverse after claw closes
+const unsigned long STRAIGHT_DRIVE_TIME = 4000;  // ms
+const unsigned long WAIT_TIME           = 5000;  // ms
+const unsigned long BACKUP_TIME         = 2000;  // ms
 
 // ============================================
-// GLOBALS
+// PHASE STATE MACHINE
 // ============================================
+enum Phase { PHASE_STRAIGHT, PHASE_WAITING, PHASE_BACKUP, PHASE_UWB };
+
 static Tag uwb_tag(0);
 
 Servo escLeft;
 Servo escRight;
 Servo clawServo;
 
-bool   claw_closed       = false;
-bool   mission_complete  = false;
-double prev_x            = -999;
-double prev_y            = -999;
-double estimated_heading = 0;
-bool   heading_valid     = false;
+Phase         phase             = PHASE_STRAIGHT;
+unsigned long phase_start_ms    = 0;
+bool          claw_closed       = false;
+bool          mission_complete  = false;
+double        prev_x            = -999;
+double        prev_y            = -999;
+double        estimated_heading = 0;
+bool          heading_valid     = false;
 
 // ============================================
 // HELPERS
@@ -105,10 +117,6 @@ void setup() {
     dwt_settxantennadelay(TX_ANT_DLY);
     dwt_setlnapamode(DWT_LNA_ENABLE | DWT_PA_ENABLE);
 
-    Serial.print("Target: (");
-    Serial.print(TARGET_X); Serial.print(", ");
-    Serial.print(TARGET_Y); Serial.println(")");
-
     escLeft.attach(ESC_LEFT,  1000, 2000);
     escRight.attach(ESC_RIGHT, 1000, 2000);
     stop_motors();
@@ -119,21 +127,71 @@ void setup() {
 
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-    Serial.println("Ready — waiting for UWB anchor lock...");
+    phase_start_ms = millis();
+    Serial.println("PHASE 1: Driving to nest...");
 }
 
 // ============================================
 // MAIN LOOP
 // ============================================
 void loop() {
-    uwb_tag.update();
+    uwb_tag.update();  // keep UWB warm in all phases
 
+    // BOOT button closes claw — active in all phases
     if (!claw_closed && digitalRead(BUTTON_PIN) == LOW) {
         clawServo.writeMicroseconds(CLAW_CLOSED);
         claw_closed = true;
         Serial.println("Claw closed.");
     }
 
+    unsigned long elapsed = millis() - phase_start_ms;
+
+    // --------------------------------------------------
+    // PHASE 1 — Drive straight for STRAIGHT_DRIVE_TIME
+    // --------------------------------------------------
+    if (phase == PHASE_STRAIGHT) {
+        drive(BASE_SPEED, BASE_SPEED);
+        if (elapsed >= STRAIGHT_DRIVE_TIME) {
+            stop_motors();
+            phase          = PHASE_WAITING;
+            phase_start_ms = millis();
+            Serial.println("PHASE 2: Stopped — press BOOT button to close claw.");
+        }
+        return;
+    }
+
+    // --------------------------------------------------
+    // PHASE 2 — Wait for operator to close claw
+    // --------------------------------------------------
+    if (phase == PHASE_WAITING) {
+        stop_motors();
+        if (elapsed >= WAIT_TIME) {
+            phase          = PHASE_BACKUP;
+            phase_start_ms = millis();
+            Serial.println("PHASE 3: Backing up...");
+        }
+        return;
+    }
+
+    // --------------------------------------------------
+    // PHASE 3 — Reverse for BACKUP_TIME
+    // --------------------------------------------------
+    if (phase == PHASE_BACKUP) {
+        drive(REVERSE_SPEED, REVERSE_SPEED);
+        if (elapsed >= BACKUP_TIME) {
+            stop_motors();
+            phase          = PHASE_UWB;
+            phase_start_ms = millis();
+            Serial.print("PHASE 4: UWB navigation to (");
+            Serial.print(TARGET_X); Serial.print(", ");
+            Serial.print(TARGET_Y); Serial.println(")");
+        }
+        return;
+    }
+
+    // --------------------------------------------------
+    // PHASE 4 — UWB pivot-turn navigation to opponent nest
+    // --------------------------------------------------
     if (!uwb_tag.is_localizing() || mission_complete) return;
 
     double x = uwb_tag.get_x();
@@ -152,8 +210,6 @@ void loop() {
 
     double target_heading = atan2(dy, dx);
 
-    // Derive heading from consecutive UWB position fixes.
-    // Only update when the robot has moved enough for a reliable reading.
     if (prev_x > -999) {
         double moved_x = x - prev_x;
         double moved_y = y - prev_y;
@@ -170,25 +226,21 @@ void loop() {
     }
 
     if (!heading_valid) {
-        // Drive straight until we've moved enough to estimate heading
         drive(BASE_SPEED, BASE_SPEED);
         return;
     }
 
-    // Heading error normalized to [-pi, pi]
     double heading_error = target_heading - estimated_heading;
     while (heading_error >  M_PI) heading_error -= 2.0 * M_PI;
     while (heading_error < -M_PI) heading_error += 2.0 * M_PI;
 
     if (abs(heading_error) <= HEADING_THRESHOLD) {
-        // Heading is good — drive straight
         drive(BASE_SPEED, BASE_SPEED);
     } else {
-        // Pivot in place to face target, then re-establish heading
         if (heading_error > 0)
-            drive(1500, BASE_SPEED);   // stop left, run right → turn left
+            drive(1500, BASE_SPEED);   // turn left
         else
-            drive(BASE_SPEED, 1500);   // run left, stop right → turn right
+            drive(BASE_SPEED, 1500);   // turn right
         heading_valid = false;
         prev_x = x;
         prev_y = y;
